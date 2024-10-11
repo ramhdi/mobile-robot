@@ -3,18 +3,52 @@
 #include "driver/gpio.h"
 #include "esp_timer.h"
 
-#define ENCODER_LEFT_PIN GPIO_NUM_34
-#define ENCODER_RIGHT_PIN GPIO_NUM_35
+// Define the pins for encoder signals A and B
+#define ENCODER_LEFT_A_PIN GPIO_NUM_34
+#define ENCODER_LEFT_B_PIN GPIO_NUM_35
+#define ENCODER_RIGHT_A_PIN GPIO_NUM_36
+#define ENCODER_RIGHT_B_PIN GPIO_NUM_37
 
 static volatile int32_t encoder_count_left = 0;
 static volatile int32_t encoder_count_right = 0;
 
+// Direction flags
+static volatile bool direction_left = true;
+static volatile bool direction_right = true;
+
 static void encoder_isr_handler(void* arg) {
-    encoder_side_t side = (encoder_side_t)(uintptr_t)arg;  // Fix casting issue
+    encoder_side_t side = (encoder_side_t)arg;
+
+    // Read both A and B signals
+    bool A, B;
+
     if (side == ENCODER_LEFT) {
-        encoder_count_left++;
+        A = gpio_get_level(ENCODER_LEFT_A_PIN);
+        B = gpio_get_level(ENCODER_LEFT_B_PIN);
     } else {
-        encoder_count_right++;
+        A = gpio_get_level(ENCODER_RIGHT_A_PIN);
+        B = gpio_get_level(ENCODER_RIGHT_B_PIN);
+    }
+
+    // Determine direction based on quadrature encoding
+    if (A == B) {
+        // If A and B are the same, the motor is moving forward
+        if (side == ENCODER_LEFT) {
+            direction_left = true;
+            encoder_count_left++;
+        } else {
+            direction_right = true;
+            encoder_count_right++;
+        }
+    } else {
+        // If A and B are different, the motor is moving backward
+        if (side == ENCODER_LEFT) {
+            direction_left = false;
+            encoder_count_left--;
+        } else {
+            direction_right = false;
+            encoder_count_right--;
+        }
     }
 }
 
@@ -25,16 +59,22 @@ void encoder_init(void) {
         .pull_up_en = GPIO_PULLUP_ENABLE,
     };
 
-    // Configure left encoder pin
-    io_conf.pin_bit_mask = (1ULL << ENCODER_LEFT_PIN);
+    // Configure left encoder pins
+    io_conf.pin_bit_mask =
+        (1ULL << ENCODER_LEFT_A_PIN) | (1ULL << ENCODER_LEFT_B_PIN);
     gpio_config(&io_conf);
-    gpio_isr_handler_add(ENCODER_LEFT_PIN, encoder_isr_handler,
+    gpio_isr_handler_add(ENCODER_LEFT_A_PIN, encoder_isr_handler,
+                         (void*)ENCODER_LEFT);
+    gpio_isr_handler_add(ENCODER_LEFT_B_PIN, encoder_isr_handler,
                          (void*)ENCODER_LEFT);
 
-    // Configure right encoder pin
-    io_conf.pin_bit_mask = (1ULL << ENCODER_RIGHT_PIN);
+    // Configure right encoder pins
+    io_conf.pin_bit_mask =
+        (1ULL << ENCODER_RIGHT_A_PIN) | (1ULL << ENCODER_RIGHT_B_PIN);
     gpio_config(&io_conf);
-    gpio_isr_handler_add(ENCODER_RIGHT_PIN, encoder_isr_handler,
+    gpio_isr_handler_add(ENCODER_RIGHT_A_PIN, encoder_isr_handler,
+                         (void*)ENCODER_RIGHT);
+    gpio_isr_handler_add(ENCODER_RIGHT_B_PIN, encoder_isr_handler,
                          (void*)ENCODER_RIGHT);
 }
 
