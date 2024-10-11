@@ -7,6 +7,7 @@
 #include "pid.h"
 #include "telemetry.h"
 #include "udp_comm.h"
+#include "wifi.h"
 
 static pid_controller_t pid_left;
 static pid_controller_t pid_right;
@@ -83,6 +84,9 @@ void command_receive_task(void *arg) {
 }
 
 void app_main(void) {
+    // Initialize Wi-Fi and wait for connection
+    wifi_init_sta();
+
     // Initialize components
     motor_control_init();
     kinematics_init();

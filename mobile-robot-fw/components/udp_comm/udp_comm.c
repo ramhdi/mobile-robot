@@ -18,13 +18,14 @@ void udp_communication_init(void) {
     struct sockaddr_in recv_addr = {.sin_family = AF_INET,
                                     .sin_port = htons(PORT_RECEIVE),
                                     .sin_addr.s_addr = INADDR_ANY};
+
     bind(sock_receive, (struct sockaddr *)&recv_addr, sizeof(recv_addr));
 
     // Send socket
     sock_send = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(PORT_SEND);
-    inet_pton(AF_INET, "192.168.1.100",
+    inet_pton(AF_INET, DEST_IP,
               &dest_addr.sin_addr);  // Replace with actual IP
 }
 
