@@ -1,6 +1,7 @@
 import socket
 import signal
 import sys
+from datetime import datetime
 
 # Define the IP address and port to listen on
 UDP_IP = "0.0.0.0"  # Listen on all available interfaces
@@ -33,7 +34,12 @@ while is_running:
         # Use non-blocking receive with timeout
         sock.settimeout(1)  # 1-second timeout
         data, addr = sock.recvfrom(1024)  # Buffer size is 1024 bytes
-        print(f"Received message from {addr}: {data.decode('utf-8', errors='ignore')}")
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )  # Get current timestamp
+        print(
+            f"[{timestamp}] Received message from {addr}: {data.decode('utf-8', errors='ignore')}"
+        )
     except socket.timeout:
         # This ensures we periodically check the is_running flag
         continue
