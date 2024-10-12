@@ -18,8 +18,8 @@ void telemetry_send(void) {
 
     char telemetry_data[128];
     int len = snprintf(telemetry_data, sizeof(telemetry_data),
-                       "Position: (%f, %f, %f), Speed: (%f, %f)", pose.x,
-                       pose.y, pose.theta, linear_speed, angular_speed);
+                       "Position: (%.2f, %.2f, %.2f), Speed: (%.2f, %.2f)",
+                       pose.x, pose.y, pose.theta, linear_speed, angular_speed);
 
     udp_send_telemetry(telemetry_data, len);
     ESP_LOGI("TELEMETRY", "%s", telemetry_data);
