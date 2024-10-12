@@ -2,9 +2,8 @@
 
 #include "esp_log.h"
 #include "lwip/sockets.h"
+#include "secrets.h"
 
-#define PORT_RECEIVE 5000
-#define PORT_SEND 5001
 #define BUFFER_SIZE 128
 
 static int sock_receive;

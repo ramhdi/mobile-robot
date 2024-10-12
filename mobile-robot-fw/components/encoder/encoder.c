@@ -59,6 +59,9 @@ void encoder_init(void) {
         .pull_up_en = GPIO_PULLUP_ENABLE,
     };
 
+    // Install the GPIO ISR service
+    ESP_ERROR_CHECK(gpio_install_isr_service(0));  // 0 means no flags
+
     // Configure left encoder pins
     io_conf.pin_bit_mask =
         (1ULL << ENCODER_LEFT_A_PIN) | (1ULL << ENCODER_LEFT_B_PIN);

@@ -1,5 +1,5 @@
-#ifndef UDP_COMMUNICATION_H
-#define UDP_COMMUNICATION_H
+#ifndef UDP_COMM_H
+#define UDP_COMM_H
 
 #include <stdint.h>
 
@@ -9,11 +9,10 @@ typedef struct {
 } movement_command_t;
 
 #define PORT_RECEIVE 5000
-#define PORT_SEND 5001
-#define DEST_IP "192.168.1.100"
+#define PORT_SEND 12345
 
 void udp_communication_init(void);
 int udp_receive_command(movement_command_t *command);
 void udp_send_telemetry(const char *data, uint16_t length);
 
-#endif  // UDP_COMMUNICATION_H
+#endif  // UDP_COMM_H

@@ -5,6 +5,7 @@
 #include "esp_wifi.h"
 #include "freertos/event_groups.h"
 #include "nvs_flash.h"
+#include "secrets.h"
 
 #define WIFI_CONNECTED_BIT BIT0  // Bit to signal Wi-Fi connected
 #define WIFI_FAIL_BIT BIT1       // Bit to signal Wi-Fi connection failed

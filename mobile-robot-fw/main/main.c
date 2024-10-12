@@ -16,7 +16,7 @@ static movement_command_t current_command = {0.0f, 0.0f};
 const float WHEEL_BASE = 0.20f;  // 20 cm in meters
 
 void motor_control_task(void *arg) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(10);  // 100 Hz control loop
+    const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 10 Hz control loop
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
@@ -51,7 +51,7 @@ void motor_control_task(void *arg) {
 }
 
 void kinematics_task(void *arg) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(10);  // 100 Hz update rate
+    const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 10 Hz update rate
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
@@ -61,11 +61,17 @@ void kinematics_task(void *arg) {
 }
 
 void telemetry_task(void *arg) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 10 Hz telemetry rate
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000);  // 1 Hz telemetry rate
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
         telemetry_send();
+
+        // Log stack usage
+        UBaseType_t remaining_stack = uxTaskGetStackHighWaterMark(NULL);
+        ESP_LOGI("Telemetry Task", "Remaining stack: %d bytes",
+                 remaining_stack * sizeof(StackType_t));
+
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -79,7 +85,7 @@ void command_receive_task(void *arg) {
             ESP_LOGI("COMMAND", "Received command: speed=%f, angle=%f",
                      command.speed_magnitude, command.direction_angle);
         }
-        vTaskDelay(pdMS_TO_TICKS(50));  // Check for new command every 50 ms
+        vTaskDelay(pdMS_TO_TICKS(100));  // Check for new command every 100 ms
     }
 }
 
@@ -88,7 +94,7 @@ void app_main(void) {
     wifi_init_sta();
 
     // Initialize components
-    motor_control_init();
+    // motor_control_init();
     kinematics_init();
     telemetry_init();
 
@@ -96,9 +102,10 @@ void app_main(void) {
     pid_init(&pid_right, 1.0f, 0.0f, 0.0f);
 
     // Create tasks
-    xTaskCreate(motor_control_task, "Motor Control Task", 2048, NULL, 5, NULL);
+    // xTaskCreate(motor_control_task, "Motor Control Task", 2048, NULL, 5,
+    // NULL);
     xTaskCreate(kinematics_task, "Kinematics Task", 2048, NULL, 5, NULL);
-    xTaskCreate(telemetry_task, "Telemetry Task", 2048, NULL, 5, NULL);
+    xTaskCreate(telemetry_task, "Telemetry Task", 3072, NULL, 5, NULL);
     xTaskCreate(command_receive_task, "Command Receive Task", 2048, NULL, 5,
                 NULL);
 }
