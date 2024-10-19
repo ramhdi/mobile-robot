@@ -1,3 +1,3 @@
 idf_component_register(SRCS "kinematics.c"
                     INCLUDE_DIRS "."
-                    REQUIRES encoder)
+                    REQUIRES encoder motor_simulation)

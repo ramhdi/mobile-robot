@@ -3,7 +3,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "kinematics.h"
-#include "motor_control.h"
+// #include "motor_control.h"
+#include <math.h>
+
+#include "motor_simulation.h"
 #include "pid.h"
 #include "telemetry.h"
 #include "udp_comm.h"
@@ -13,13 +16,13 @@ static pid_controller_t pid_left;
 static pid_controller_t pid_right;
 static movement_command_t current_command = {0.0f, 0.0f};
 
-const float WHEEL_BASE = 0.20f;  // 20 cm in meters
-
 void motor_control_task(void *arg) {
     const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 10 Hz control loop
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
+        float dt = 0.1f;  // 100 ms in seconds
+
         // Compute desired wheel speeds from movement command
         float v = current_command.speed_magnitude;
         float omega = current_command.direction_angle;
@@ -28,23 +31,26 @@ void motor_control_task(void *arg) {
         float v_left = v - (omega * WHEEL_BASE / 2);
         float v_right = v + (omega * WHEEL_BASE / 2);
 
-        // Get actual wheel speeds
-        float actual_speed_left =
-            kinematics_get_linear_speed();  // For simplicity, using linear
-                                            // speed
-        float actual_speed_right = kinematics_get_linear_speed();
+        // Convert linear velocities to normalized speeds
+        float target_speed_left =
+            v_left / (2 * M_PI * WHEEL_RADIUS * MOTOR_MAX_SPEED);
+        float target_speed_right =
+            v_right / (2 * M_PI * WHEEL_RADIUS * MOTOR_MAX_SPEED);
+
+        // Get actual wheel speeds from simulation
+        float actual_speed_left = motor_simulation_get_speed(MOTOR_LEFT);
+        float actual_speed_right = motor_simulation_get_speed(MOTOR_RIGHT);
 
         // Compute PID outputs
-        pid_left.setpoint = v_left;
-        pid_right.setpoint = v_right;
+        pid_left.setpoint = target_speed_left;
+        pid_right.setpoint = target_speed_right;
 
-        float control_left = pid_compute(&pid_left, actual_speed_left, 0.01f);
-        float control_right =
-            pid_compute(&pid_right, actual_speed_right, 0.01f);
+        float control_left = pid_compute(&pid_left, actual_speed_left, dt);
+        float control_right = pid_compute(&pid_right, actual_speed_right, dt);
 
-        // Set motor speeds
-        motor_set_speed(MOTOR_LEFT, control_left);
-        motor_set_speed(MOTOR_RIGHT, control_right);
+        // Set motor target speeds in simulation
+        motor_simulation_set_target_speed(MOTOR_LEFT, control_left);
+        motor_simulation_set_target_speed(MOTOR_RIGHT, control_right);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -95,6 +101,7 @@ void app_main(void) {
 
     // Initialize components
     // motor_control_init();
+    motor_simulation_init();
     kinematics_init();
     telemetry_init();
 
@@ -102,8 +109,7 @@ void app_main(void) {
     pid_init(&pid_right, 1.0f, 0.0f, 0.0f);
 
     // Create tasks
-    // xTaskCreate(motor_control_task, "Motor Control Task", 2048, NULL, 5,
-    // NULL);
+    xTaskCreate(motor_control_task, "Motor Control Task", 2048, NULL, 5, NULL);
     xTaskCreate(kinematics_task, "Kinematics Task", 2048, NULL, 5, NULL);
     xTaskCreate(telemetry_task, "Telemetry Task", 3072, NULL, 5, NULL);
     xTaskCreate(command_receive_task, "Command Receive Task", 2048, NULL, 5,

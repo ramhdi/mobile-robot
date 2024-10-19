@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+// Constants for the robot
+#define WHEEL_RADIUS 0.05f  // 5 cm radius
+#define WHEEL_BASE 0.20f    // 20 cm between wheels
+
 typedef struct {
     float x;
     float y;

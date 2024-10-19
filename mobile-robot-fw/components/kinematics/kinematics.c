@@ -2,49 +2,40 @@
 
 #include <math.h>
 
-#include "encoder.h"
-
-// Constants for the robot
-#define WHEEL_RADIUS 0.05f  // 5 cm radius
-#define WHEEL_BASE 0.20f    // 20 cm between wheels
-#define ENCODER_PULSES_PER_REV 11
-#define GEAR_RATIO 1.0f  // Assume direct drive
+#include "motor_simulation.h"
 
 static pose_t current_pose = {0.0f, 0.0f, 0.0f};
 static float linear_speed = 0.0f;
 static float angular_speed = 0.0f;
 
-void kinematics_init(void) { encoder_init(); }
+void kinematics_init(void) { motor_simulation_init(); }
 
 void kinematics_update(float dt) {
-    // Get the encoder counts for left and right
-    int32_t left_count = encoder_get_count(ENCODER_LEFT);
-    int32_t right_count = encoder_get_count(ENCODER_RIGHT);
+    // Update motor simulation
+    motor_simulation_update(dt);
 
-    // Reset the encoder counts after reading
-    encoder_reset(ENCODER_LEFT);
-    encoder_reset(ENCODER_RIGHT);
+    // Get the actual wheel speeds from the simulation
+    float left_speed = motor_simulation_get_speed(MOTOR_LEFT);
+    float right_speed = motor_simulation_get_speed(MOTOR_RIGHT);
 
-    // Calculate the distance traveled by each wheel, incorporating direction
-    float left_distance = (2 * M_PI * WHEEL_RADIUS * left_count) /
-                          (ENCODER_PULSES_PER_REV * GEAR_RATIO);
-    float right_distance = (2 * M_PI * WHEEL_RADIUS * right_count) /
-                           (ENCODER_PULSES_PER_REV * GEAR_RATIO);
+    // Convert normalized speeds to linear velocities
+    float left_velocity =
+        left_speed * MOTOR_MAX_SPEED * (2 * M_PI * WHEEL_RADIUS);
+    float right_velocity =
+        right_speed * MOTOR_MAX_SPEED * (2 * M_PI * WHEEL_RADIUS);
 
-    // Compute the robot's linear and angular displacements
-    float distance =
-        (right_distance + left_distance) / 2.0f;  // Average distance
-    float delta_theta =
-        (right_distance - left_distance) / WHEEL_BASE;  // Change in orientation
+    // Compute the robot's linear and angular velocities
+    float v = (right_velocity + left_velocity) / 2.0f;
+    float omega = (right_velocity - left_velocity) / WHEEL_BASE;
 
     // Update robot pose
-    current_pose.theta += delta_theta;
-    current_pose.x += distance * cosf(current_pose.theta);
-    current_pose.y += distance * sinf(current_pose.theta);
+    current_pose.theta += omega * dt;
+    current_pose.x += v * cosf(current_pose.theta) * dt;
+    current_pose.y += v * sinf(current_pose.theta) * dt;
 
     // Update speed values
-    linear_speed = distance / dt;
-    angular_speed = delta_theta / dt;
+    linear_speed = v;
+    angular_speed = omega;
 }
 
 pose_t kinematics_get_pose(void) { return current_pose; }
