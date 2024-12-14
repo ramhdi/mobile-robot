@@ -24,6 +24,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "pid_ctrl.h"
+#include <math.h>
 #include "sdkconfig.h"
 
 /// Log tag for this example
@@ -33,10 +34,10 @@ static const char *TAG = "example";
 #define SERIAL_STUDIO_DEBUG true
 
 /// @brief MCPWM timer resolution (Hz)
-#define BDC_MCPWM_TIMER_RESOLUTION_HZ 10000000  // 10MHz, 1 tick = 0.1us
+#define BDC_MCPWM_TIMER_RESOLUTION_HZ 10000000 // 10MHz, 1 tick = 0.1us
 
 /// @brief MCPWM frequency (Hz)
-#define BDC_MCPWM_FREQ_HZ 25000  // 25KHz PWM
+#define BDC_MCPWM_FREQ_HZ 25000 // 25KHz PWM
 
 /// @brief Maximum MCPWM duty cycle in ticks
 #define BDC_MCPWM_DUTY_TICK_MAX \
@@ -64,16 +65,17 @@ static const char *TAG = "example";
 #define BDC_PID_LOOP_PERIOD_MS 10
 
 /// @brief Expected motor speed in encoder pulses
-#define BDC_PID_EXPECT_SPEED 25
+#define BDC_PID_EXPECT_SPEED -25
 
 /**
  * @brief Context for motor control, including motor, encoder, and PID handles.
  */
-typedef struct {
-    bdc_motor_handle_t motor;          ///< DC motor handle
-    pcnt_unit_handle_t pcnt_encoder;   ///< PCNT encoder handle
-    pid_ctrl_block_handle_t pid_ctrl;  ///< PID control block handle
-    int report_pulses;                 ///< Pulse count reported by encoder
+typedef struct
+{
+    bdc_motor_handle_t motor;         ///< DC motor handle
+    pcnt_unit_handle_t pcnt_encoder;  ///< PCNT encoder handle
+    pid_ctrl_block_handle_t pid_ctrl; ///< PID control block handle
+    int report_pulses;                ///< Pulse count reported by encoder
 } motor_control_context_t;
 
 /**
@@ -86,6 +88,7 @@ typedef struct {
  */
 static void pid_loop_cb(void *args) {
     static int last_pulse_count = 0;
+    static bool initial_direction_set = false;
     motor_control_context_t *ctx = (motor_control_context_t *)args;
     pcnt_unit_handle_t pcnt_unit = ctx->pcnt_encoder;
     pid_ctrl_block_handle_t pid_ctrl = ctx->pid_ctrl;
@@ -98,21 +101,37 @@ static void pid_loop_cb(void *args) {
     last_pulse_count = cur_pulse_count;
     ctx->report_pulses = real_pulses;
 
-    // Calculate speed error
-    float error = BDC_PID_EXPECT_SPEED - real_pulses;
-    float new_speed = 0;
+    // Set initial direction based on target (only once)
+    if (!initial_direction_set) {
+        if (BDC_PID_EXPECT_SPEED < 0) {
+            bdc_motor_reverse(motor);
+        } else {
+            bdc_motor_forward(motor);
+        }
+        initial_direction_set = true;
+        return;  // Skip first PID computation to let direction settle
+    }
+
+    // Calculate target and error using absolute values
+    int target_abs = abs(BDC_PID_EXPECT_SPEED);
+    int current_abs = abs(real_pulses);
+    float error = target_abs - current_abs;
 
     // Compute new speed using PID controller
+    float new_speed = 0;
     pid_compute(pid_ctrl, error, &new_speed);
-    bdc_motor_set_speed(motor, (uint32_t)new_speed);
-}
 
+    // Adjust speed and ensure it's within bounds
+    uint32_t applied_speed = (uint32_t)fmin(fmax(new_speed, 0), BDC_MCPWM_DUTY_TICK_MAX - 1);
+    bdc_motor_set_speed(motor, applied_speed);
+}
 /**
  * @brief Main application entry point.
  *
  * Initializes peripherals, sets up motor control, and starts the PID loop.
  */
-void app_main(void) {
+void app_main(void)
+{
     static motor_control_context_t motor_ctrl_ctx = {
         .pcnt_encoder = NULL,
     };
@@ -211,14 +230,22 @@ void app_main(void) {
 
     ESP_LOGI(TAG, "Enable motor");
     ESP_ERROR_CHECK(bdc_motor_enable(motor));
-    ESP_LOGI(TAG, "Set motor to forward");
-    ESP_ERROR_CHECK(bdc_motor_forward(motor));
+    ESP_LOGI(TAG, "Set initial motor direction");
+    if (BDC_PID_EXPECT_SPEED < 0)
+    {
+        ESP_ERROR_CHECK(bdc_motor_reverse(motor));
+    }
+    else
+    {
+        ESP_ERROR_CHECK(bdc_motor_forward(motor));
+    }
 
     ESP_LOGI(TAG, "Start PID loop");
     ESP_ERROR_CHECK(esp_timer_start_periodic(pid_loop_timer,
                                              BDC_PID_LOOP_PERIOD_MS * 1000));
 
-    while (1) {
+    while (1)
+    {
         vTaskDelay(pdMS_TO_TICKS(100));
 #if SERIAL_STUDIO_DEBUG
         printf("/*%d*/\r\n", motor_ctrl_ctx.report_pulses);
